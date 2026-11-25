@@ -1,6 +1,7 @@
 # 编译产物
 server
 *.o
+build/
 
 # 运行期日志（ServerLog 由 log 模块按日期生成）
 *_ServerLog*
