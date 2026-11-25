@@ -430,15 +430,25 @@ http_conn::HTTP_CODE http_conn::do_request()
         {
             //如果是注册，先检测数据库中是否有重名的
             //没有重名的，进行增加数据
-            char *sql_insert = (char *)malloc(sizeof(char) * 200);
-            strcpy(sql_insert, "INSERT INTO user(username, passwd) VALUES(");
-            strcat(sql_insert, "'");
-            strcat(sql_insert, name);
-            strcat(sql_insert, "', '");
-            strcat(sql_insert, password);
-            strcat(sql_insert, "')");
+            // ① 转义：防止 SQL 注入（' 会变成 \'）
 
-            if (users.find(name) == users.end())
+            char escaped_name[256] = {0};
+            char escaped_password[256] = {0};
+            mysql_real_escape_string(mysql, escaped_name, name, strlen(name));
+            mysql_real_escape_string(mysql, escaped_password, password, strlen(password));
+
+            // ② 用 snprintf 拼进固定缓冲区：最长 446 字节，512 足够
+            char sql_insert[512];
+            int sql_len = snprintf(sql_insert, sizeof(sql_insert),
+                                "INSERT INTO user(username, passwd) VALUES('%s', '%s')",
+                                escaped_name, escaped_password);
+
+            // ③ 检查是否被截断
+            if (sql_len < 0 || sql_len >= (int)sizeof(sql_insert))
+            {
+                strcpy(m_url, "/registerError.html");
+            }
+            else if (users.find(name) == users.end())
             {
                 m_lock.lock();
                 int res = mysql_query(mysql, sql_insert);
